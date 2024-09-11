@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>아이스크림 문장 게임</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(to bottom, #87CEEB, #E0F7FA);
+        }
+        #game-container {
+            text-align: center;
+        }
+        #ice-cream-cone {
+            width: 300px;
+            height: 400px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400" viewBox="0 0 300 400"><path d="M100 200 L150 400 L200 200 Z" fill="%23D2691E"/></svg>') no-repeat center bottom;
+            position: relative;
+        }
+        .scoop {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            position: absolute;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 20px;
+        }
+        .scoop:hover {
+            transform: scale(1.1);
+        }
+        #word-display {
+            font-size: 24px;
+            margin-top: 20px;
+        }
+        #game-info {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            font-size: 18px;
+        }
+        #hearts {
+            color: red;
+        }
+        #celebration {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 1000;
+        }
+        #celebration h1 {
+            color: white;
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        .flower {
+            font-size: 72px;
+            animation: rotate 2s infinite linear;
+        }
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <h1>아이스크림 문장 게임</h1>
+        <div id="ice-cream-cone"></div>
+        <div id="word-display"></div>
+        <div id="game-info">
+            <div id="hearts">❤️❤️❤️</div>
+            <div id="timer">시간: 30초</div>
+            <div id="level">레벨: 1/10</div>
+            <div id="score">점수: 0</div>
+        </div>
+    </div>
+    <div id="celebration">
+        <h1>축하합니다! 모든 레벨을 클리어했습니다!</h1>
+        <div>
+            <span class="flower">💐</span>
+            <span class="flower">🌸</span>
+            <span class="flower">🌺</span>
+            <span class="flower">🌼</span>
+            <span class="flower">🌻</span>
+        </div>
+    </div>
+
+    <script>
+        const words = [
+            '넌 참 소중해', '넌 참 사랑스러워', '넌 최고야', '넌 할 수 있어', '태어나줘서 고마워',
+            '내가 최고야', '난 너무 사랑스러워', '난 소중한 사람이야', '난 무엇이든 할 수 있어', '태어나길 참 잘했어'
+        ];
+        const colors = ['#FFB6C1', '#98FB98', '#87CEFA', '#DDA0DD', '#F0E68C', '#FF7F50', '#00CED1', '#FF69B4', '#32CD32', '#BA55D3'];
+        let currentWord = '';
+        let currentLevel = 0;
+        let score = 0;
+        let clickedLetters = '';
+        let hearts = 3;
+        let timer = 30;
+        let timerInterval;
+
+        function playSound(frequency, duration) {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            
+            gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.start();
+            oscillator.stop(audioContext.currentTime + duration);
+        }
+
+        function startGame() {
+            currentWord = words[currentLevel];
+            clickedLetters = '';
+            hearts = 3;
+            timer = 30;
+            updateDisplay();
+            createScoops();
+            startTimer();
+            playSound(440, 0.3); // 게임 시작 사운드
+        }
+
+        function createScoops() {
+            const cone = document.getElementById('ice-cream-cone');
+            cone.innerHTML = '';
+            const letters = shuffleArray(currentWord.split('').filter(char => char !== ' '));
+            
+            letters.forEach((letter, index) => {
+                const scoop = document.createElement('div');
+                scoop.className = 'scoop';
+                scoop.textContent = letter;
+                scoop.style.backgroundColor = colors[index % colors.length];
+                scoop.style.left = `${50 + Math.random() * 190}px`;
+                scoop.style.top = `${20 + index * 40}px`;
+                scoop.onclick = () => clickScoop(letter, scoop);
+                cone.appendChild(scoop);
+            });
+        }
+
+        function clickScoop(letter, scoopElement) {
+            const nextCorrectLetter = currentWord.replace(/ /g, '')[clickedLetters.length];
+            if (letter === nextCorrectLetter) {
+                clickedLetters += letter;
+                updateWordDisplay();
+                scoopElement.style.visibility = 'hidden';
+                score += 10;
+                updateDisplay();
+                playSound(660, 0.1); // 정답 클릭 사운드
+
+                if (clickedLetters === currentWord.replace(/ /g, '')) {
+                    clearInterval(timerInterval);
+                    if (currentLevel === words.length - 1) {
+                        showCelebration();
+                        playSound(880, 0.5); // 게임 클리어 사운드
+                    } else {
+                        currentLevel++;
+                        setTimeout(() => {
+                            alert('축하합니다! 다음 레벨로 넘어갑니다.');
+                            startGame();
+                        }, 500);
+                        playSound(740, 0.3); // 레벨 완료 사운드
+                    }
+                }
+            } else {
+                hearts--;
+                updateDisplay();
+                playSound(220, 0.2); // 오답 사운드
+                if (hearts === 0) {
+                    clearInterval(timerInterval);
+                    alert('게임 오버! 하트를 모두 잃었습니다.');
+                    resetGame();
+                    playSound(165, 0.5); // 게임 오버 사운드
+                } else {
+                    alert('틀렸습니다. 하트를 1개 잃었습니다.');
+                }
+            }
+        }
+
+        function updateWordDisplay() {
+            const wordDisplay = document.getElementById('word-display');
+            let displayText = '';
+            let clickedIndex = 0;
+            for (let i = 0; i < currentWord.length; i++) {
+                if (currentWord[i] === ' ') {
+                    displayText += ' ';
+                } else if (clickedIndex < clickedLetters.length) {
+                    displayText += currentWord[i];
+                    clickedIndex++;
+                } else {
+                    displayText += '_';
+                }
+            }
+            wordDisplay.textContent = displayText;
+        }
+
+        function updateDisplay() {
+            document.getElementById('hearts').textContent = '❤️'.repeat(hearts);
+            document.getElementById('timer').textContent = `시간: ${timer}초`;
+            document.getElementById('level').textContent = `레벨: ${currentLevel + 1}/10`;
+            document.getElementById('score').textContent = `점수: ${score}`;
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timer--;
+                updateDisplay();
+                if (timer <= 0) {
+                    clearInterval(timerInterval);
+                    alert('시간 초과! 게임 오버');
+                    resetGame();
+                    playSound(165, 0.5); // 게임 오버 사운드
+                }
+            }, 1000);
+        }
+
+        function resetGame() {
+            currentLevel = 0;
+            score = 0;
+            startGame();
+            playSound(330, 0.3); // 게임 리셋 사운드
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function showCelebration() {
+            const celebration = document.getElementById('celebration');
+            celebration.style.display = 'flex';
+            setTimeout(() => {
+                celebration.style.display = 'none';
+                resetGame();
+            }, 5000);
+        }
+
+        document.addEventListener('DOMContentLoaded', startGame);
+    </script>
+</body>
+</html>
